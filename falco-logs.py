@@ -54,7 +54,15 @@ def update_loop():
         for container_id, logs in container_logs_lines.items():
             new["%s;<container>" % (container_id)] = {
                 'latest': {
-                    "container-falco-table-Alerts.%s" % list(container_logs_lines).index(container_id): {
+                    "container-falco-table-Alerts___falco-type" : {
+                        'timestamp': timestamp,
+                        'value': "informational",
+                    },
+                    "container-falco-table-Alerts___falco-date" : {
+                        'timestamp': timestamp,
+                        'value': timestamp,
+                    },
+                    "container-falco-table-Alerts___falco-description" : {
                         'timestamp': timestamp,
                         'value': logs,
                     }
@@ -76,7 +84,6 @@ class Handler(BaseHTTPRequestHandler):
         # The logger requires a client_address, but unix sockets don't have
         # one, so we fake it.
         self.client_address = "-"
-
         # Generate our json body
         body = json.dumps({
             'Plugins': [
@@ -98,13 +105,30 @@ class Handler(BaseHTTPRequestHandler):
                         # Human-friendly field name
                         'label': "Falco Alerts",
                         # Type of table
-                        'type': "property-list",
+                        'type': "multicolumn-table",
                         # Prefix to be added in columns
                         'prefix': "container-falco-table-",
                         # Look up the 'id' in the latest object.
                         'from': "latest",
                         # Priorities over 10 are hidden, lower is earlier in the list.
                         'priority': 0.1,
+                        "columns": [ 
+                            { 
+                                "id": "falco-type", 
+                                "label": "Type", 
+                                "dataType": "" 
+                            }, 
+                            { 
+                                "id": "falco-date", 
+                                "label": "Date", 
+                                "dataType": "" 
+                            }, 
+                            { 
+                                "id": "falco-description", 
+                                "label": "Description", 
+                                "dataType": "" 
+                            }, 
+                        ],
                     },
                 },
                 'metadata_templates': {
@@ -130,6 +154,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # Send the body
         self.wfile.write(body.encode())
+        time.sleep(5)
 
 def mkdir_p(path):
     try:
