@@ -154,7 +154,6 @@ class Handler(BaseHTTPRequestHandler):
 
         # Send the body
         self.wfile.write(body.encode())
-        time.sleep(5)
 
 def mkdir_p(path):
     try:
