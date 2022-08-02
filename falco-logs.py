@@ -12,59 +12,90 @@ import socket
 import threading
 import time
 
+import encodings
+import readline
+from sys import stdout
+import docker
+import re
+
 
 PLUGIN_ID="falco-logs"
 PLUGIN_UNIX_SOCK="/var/run/scope/plugins/" + PLUGIN_ID + ".sock"
 DOCKER_SOCK="unix://var/run/docker.sock"
 FILE="container_logs"
+APP_NAME="Falco_logs"
 
 nodes = {}
 
 
-def read_filelines () :
-    f = open(FILE, 'r')
-    myDict = {}
-    for line in f:
-        myDict [line.split(",")[0]]=line.split(",")[1]
-    f.close
-    return myDict
+LOG_FILE="alert"
+APP_NAME="Falco_logs"
 
-def save_containerlogfile ():
-    f = open(FILE, 'w')
+LOG_FILE="alert"
+APP_NAME="Falco_logs"
+
+def read_container_falco_logs() :
     log_percontainer = {}    
     cli = docker.from_env()
-    for c in cli.containers.list(all=True):
-        f.write ("%s,%s\n" % (c.id, c.logs(tail=1)))
-    f.close
+    try:
+        c= cli.containers.get("FALCO")
+        data=[]
+        for line in c.logs().decode('utf-8').split("\n"):        
+            try:
+                if  (entry := (parse_logs(line))) :
+                    data.append(entry)
+            except:
+                print(APP_NAME+": Error reading Falco container logs")
+        return data
+    except:
+            print(APP_NAME+": Falco container is not running")
+            return None
+def parse_logs(line):
+    data = []
+    order = ["date", "type", "description", "id"]
+    structure = {}
+    details = line.split(" ",2)        
+    cli = docker.from_env()
+    if (len(details)>=2) and (id := re.search(r'\b(id=)\w+', details[2])):
+        try:
+            c=cli.containers.get(id.group()[3:])
+            details.append(c.id)
+            structure = {key:value for key, value in zip(order, details)}
+        except:
+            return None
+    return structure
+
+
 
 
 def update_loop():
     global nodes
     next_call = time.time()  
-    save_containerlogfile()  
+    #save_containerlogfile()  
     while True:
-        container_logs_lines = read_filelines ()
-
+        #container_logs_lines = read_filelines ()
+        data = read_container_falco_logs()
         # Get current timestamp in RFC3339
         timestamp = datetime.datetime.utcnow()
         timestamp = timestamp.isoformat('T') + 'Z'
 
         # Fetch and convert data to scope data model
         new = {}        
-        for container_id, logs in container_logs_lines.items():
-            new["%s;<container>" % (container_id)] = {
+        #for container_id, logs in container_logs_lines.items():
+        for entry in data:
+            new["%s;<container>" % (entry["id"])] = {
                 'latest': {
                     "container-falco-table-Alerts___falco-type" : {
                         'timestamp': timestamp,
-                        'value': "informational",
+                        'value': entry["type"],
                     },
                     "container-falco-table-Alerts___falco-date" : {
                         'timestamp': timestamp,
-                        'value': timestamp,
+                        'value': entry["date"],
                     },
                     "container-falco-table-Alerts___falco-description" : {
                         'timestamp': timestamp,
-                        'value': logs,
+                        'value': entry["description"],
                     }
                 }
             }
