@@ -1,5 +1,6 @@
 #!/usr/bin/env python
 
+from urllib.parse import urlparse
 import docker
 from http.server import BaseHTTPRequestHandler,HTTPServer
 import socketserver
@@ -83,22 +84,39 @@ def update_loop():
         new = {}        
         #for container_id, logs in container_logs_lines.items():
         for entry in data:
+            
+            #new["%s;<container>" % (entry["id"])] = list()
+            dead=False
             new["%s;<container>" % (entry["id"])] = {
-                'latest': {
+                #'latest': {
                     "container-falco-table-Alerts___falco-type" : {
                         'timestamp': timestamp,
-                        'value': entry["type"],
+                        'value': entry["type"]
                     },
                     "container-falco-table-Alerts___falco-date" : {
                         'timestamp': timestamp,
-                        'value': entry["date"],
+                        'value': entry["date"]
                     },
                     "container-falco-table-Alerts___falco-description" : {
                         'timestamp': timestamp,
-                        'value': entry["description"],
-                    }
-                }
+                        'value': entry["description"]
+                    },
+                    'latestControls': { 
+                        "falco_on": {
+                            'timestamp': timestamp,
+                                'value': {
+                                    'dead': dead
+                                } 
+                        }                          
+                    }                                   
+                #}
+            }            
+            item2 = { 
+                
             }
+            #new["%s;<container>" % (entry["id"])].append(item1)
+            #new["%s;<container>" % (entry["id"])].append(item2)
+            #print(new)
 
         nodes = new
         next_call += 5
@@ -111,18 +129,32 @@ def start_update_loop():
 
 
 class Handler(BaseHTTPRequestHandler):
+
     def do_GET(self):
+        self.log_extra = ''
+        path = urlparse(self.path)[2].lower()
+        if path == '/report':
+            self.do_report()
+        else:
+            self.send_response(404)
+            self.send_header('Content-length', 0)
+            self.end_headers()
+
+    
+    def do_report(self):
         # The logger requires a client_address, but unix sockets don't have
         # one, so we fake it.
         self.client_address = "-"
         # Generate our json body
+        
+        #nodes_dump = json.dumps(nodes,indent = 4).replace("[","{").replace("]","}")
         body = json.dumps({
             'Plugins': [
                 {
                     'id': PLUGIN_ID,
                     'label': 'FALCO',
                     'description': 'Shows security alerts in corresponding containers',
-                    'interfaces': ['reporter'],
+                    'interfaces': ['reporter', 'controller'],
                     'api_version': '1',
                 }
             ],
@@ -162,22 +194,26 @@ class Handler(BaseHTTPRequestHandler):
                         ],
                     },
                 },
-                'metadata_templates': {
-                    'falco_count': {
+                'controls': {
+                    'falco_on': {
                         # Key where this data can be found.
-                        'id': "falco-metric",
+                        'id': "falco_on",
                         # Human-friendly field name
-                        'label': "# Falco Agent",
-                        # Look up the 'id' in the latest object.
-                        'from': "latest",
-                        # Priorities over 10 are hidden, lower is earlier in the list.
-                        'priority': 0.1,
+                        'human': "Retrieve falco alerts",
+                        # Icon to show.
+                        'icon': "fa-clock-o",
+                        # Lower is earlier in the list.
+                        'rank': 9
                     },
                 },
             },
         })
 
         # Send the headers
+        #print(nodes)
+        #print(nodes_dump)
+        #print (json.dumps(body, indent=4))
+        print(body)
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
