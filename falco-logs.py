@@ -18,7 +18,7 @@ import readline
 from sys import stdout
 import docker
 import re
-
+import simplejson
 
 PLUGIN_ID="falco-logs"
 PLUGIN_UNIX_SOCK="/var/run/scope/plugins/" + PLUGIN_ID + ".sock"
@@ -27,6 +27,8 @@ FILE="container_logs"
 APP_NAME="Falco_logs"
 
 nodes = {}
+#Containers that have enabled Falco alerts
+nodes_on = []
 
 
 LOG_FILE="alert"
@@ -35,22 +37,21 @@ APP_NAME="Falco_logs"
 LOG_FILE="alert"
 APP_NAME="Falco_logs"
 
-def read_container_falco_logs() :
-    log_percontainer = {}    
+def read_container_falco_logs(id) :    
     cli = docker.from_env()
-    try:
-        c= cli.containers.get("FALCO")
-        data=[]
-        for line in c.logs().decode('utf-8').split("\n"):        
-            try:
-                if  (entry := (parse_logs(line))) :
-                    data.append(entry)
-            except:
-                print(APP_NAME+": Error reading Falco container logs")
-        return data
-    except:
-            print(APP_NAME+": Falco container is not running")
-            return None
+    c= cli.containers.get("FALCO")
+    data=[]
+    for line in c.logs().decode('utf-8').split("\n"):        
+        try:
+            if  (re.search(r'\b(id=%s)\w+' % (id), line)):
+                entry = (parse_logs(line))
+                if entry!=None:
+                        data.append(entry)
+        except:
+            print(APP_NAME+": Error reading Falco container logs")
+            
+    return data
+
 def parse_logs(line):
     data = []
     order = ["date", "type", "description", "id"]
@@ -59,7 +60,7 @@ def parse_logs(line):
     cli = docker.from_env()
     if (len(details)>=2) and (id := re.search(r'\b(id=)\w+', details[2])):
         try:
-            c=cli.containers.get(id.group()[3:])
+            c=cli.containers.get(id.group()[3:])        
             details.append(c.id)
             structure = {key:value for key, value in zip(order, details)}
         except:
@@ -67,58 +68,91 @@ def parse_logs(line):
     return structure
 
 
-
+def get_all_container_ids ():
+    data = []
+    cli = docker.from_env()
+    for c in cli.containers.list():
+        data.append(c.id)
+    return data
 
 def update_loop():
-    global nodes
+    global nodes,nodes_on
     next_call = time.time()  
     #save_containerlogfile()  
     while True:
         #container_logs_lines = read_filelines ()
-        data = read_container_falco_logs()
-        # Get current timestamp in RFC3339
-        timestamp = datetime.datetime.utcnow()
-        timestamp = timestamp.isoformat('T') + 'Z'
+        print("NODES_ON: ",nodes_on)
+        if (not bool(nodes_on)):
+            #nodes_om is empty and alerts is off
+            containers_ids = get_all_container_ids()
+            # Get current timestamp in RFC3339
+            timestamp = datetime.datetime.utcnow()
+            timestamp = timestamp.isoformat('T') + 'Z'
 
-        # Fetch and convert data to scope data model
-        new = {}        
-        #for container_id, logs in container_logs_lines.items():
-        for entry in data:
-            
-            #new["%s;<container>" % (entry["id"])] = list()
-            dead=False
-            new["%s;<container>" % (entry["id"])] = {
-                #'latest': {
-                    "container-falco-table-Alerts___falco-type" : {
-                        'timestamp': timestamp,
-                        'value': entry["type"]
-                    },
-                    "container-falco-table-Alerts___falco-date" : {
-                        'timestamp': timestamp,
-                        'value': entry["date"]
-                    },
-                    "container-falco-table-Alerts___falco-description" : {
-                        'timestamp': timestamp,
-                        'value': entry["description"]
-                    },
-                    'latestControls': { 
-                        "falco_on": {
-                            'timestamp': timestamp,
+            # Fetch and convert data to scope data model
+            new = {}        
+            #for container_id, logs in container_logs_lines.items():
+            for entry in containers_ids:
+                #Controller falco_on is visible
+                dead=True
+                new["%s;<container>" % (entry)] = {
+                        'latestControls': { 
+                            "falco_on": {
+                                'timestamp': timestamp,
                                 'value': {
-                                    'dead': dead
-                                } 
-                        }                          
-                    }                                   
-                #}
-            }            
-            item2 = { 
-                
-            }
-            #new["%s;<container>" % (entry["id"])].append(item1)
-            #new["%s;<container>" % (entry["id"])].append(item2)
-            #print(new)
+                                    'dead': not dead,
+                                }
+                            },
+                            "falco_off": {
+                                'timestamp': timestamp,
+                                'value': {
+                                    'dead': dead,
+                                }
+                            }                          
+                        }                       
+                }            
+        
 
+        else:
+            dead=True
+            for node in nodes_on:
+                short_id=node[0:8]
+                
+                for entry in read_container_falco_logs(short_id):                    
+                    new[node] = {
+                        'latest': {
+                            "container-falco-table-Alerts___falco-type" : {
+                                'timestamp': timestamp,
+                                'value': entry["type"]
+                            },
+                            "container-falco-table-Alerts___falco-date" : {
+                                'timestamp': timestamp,
+                                'value': entry["date"]
+                            },
+                            "container-falco-table-Alerts___falco-description" : {
+                                'timestamp': timestamp,
+                                'value': entry["description"]
+                                }
+                        },
+                        'latestControls': { 
+                            "falco_on": {
+                                'timestamp': timestamp,
+                                'value': {
+                                    'dead': dead,
+                                }
+                            },
+                            "falco_off": {
+                                'timestamp': timestamp,
+                                'value': {
+                                    'dead': not dead,
+                                }
+                            }                          
+                        }                                   
+                    }               
+                        
+        
         nodes = new
+        #print (json.dumps(nodes,indent=4))
         next_call += 5
         time.sleep(next_call - time.time())
 
@@ -129,7 +163,16 @@ def start_update_loop():
 
 
 class Handler(BaseHTTPRequestHandler):
-
+    def do_POST(self):
+        self.log_extra = ''
+        path = urlparse(self.path)[2].lower()
+        if path == '/control':
+            self.do_control()
+        else:
+            self.send_response(404)
+            self.send_header('Content-length', 0)
+            self.end_headers()
+        
     def do_GET(self):
         self.log_extra = ''
         path = urlparse(self.path)[2].lower()
@@ -140,7 +183,16 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header('Content-length', 0)
             self.end_headers()
 
-    
+    def do_control(self):        
+        global nodes_on
+        raw = (self.rfile.read(int(self.headers['content-length']))).decode('utf-8')
+        raw_dict = json.loads(raw)
+        if raw_dict['Control'] == "falco_on":
+            print(raw_dict)
+            nodes_on.append(raw_dict['NodeID'])
+            self.do_report()        
+
+
     def do_report(self):
         # The logger requires a client_address, but unix sockets don't have
         # one, so we fake it.
@@ -205,6 +257,16 @@ class Handler(BaseHTTPRequestHandler):
                         # Lower is earlier in the list.
                         'rank': 9
                     },
+                      'falco_off': {
+                        # Key where this data can be found.
+                        'id': "falco_on",
+                        # Human-friendly field name
+                        'human': "Retrieve falco alerts",
+                        # Icon to show.
+                        'icon': "fa-gears",
+                        # Lower is earlier in the list.
+                        'rank': 9
+                    }
                 },
             },
         })
@@ -212,8 +274,8 @@ class Handler(BaseHTTPRequestHandler):
         # Send the headers
         #print(nodes)
         #print(nodes_dump)
-        #print (json.dumps(body, indent=4))
-        print(body)
+        print (json.dumps(nodes, indent=4))
+        #print(body)
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
