@@ -29,6 +29,7 @@ APP_NAME="Falco_logs"
 nodes = {}
 #Containers that have enabled Falco alerts
 nodes_on = []
+nodes_off = []
 
 
 LOG_FILE="alert"
@@ -68,23 +69,25 @@ def parse_logs(line):
     return structure
 
 
-def get_all_container_ids ():
+def get_all_scope_containers_ids ():
     data = []
     cli = docker.from_env()
     for c in cli.containers.list():
-        data.append(c.id)
+        data.append("%s;<container>" % (c.id))
     return data
 
 def update_loop():
-    global nodes,nodes_on
+    global nodes,nodes_on,nodes_off
     next_call = time.time()  
     #save_containerlogfile()  
     while True:
         #container_logs_lines = read_filelines ()
-        print("NODES_ON: ",nodes_on)
+        #print("NODES_ON: ",nodes_on)
         if (not bool(nodes_on)):
-            #nodes_om is empty and alerts is off
-            containers_ids = get_all_container_ids()
+            #nodes_on is empty, alerts is off for all elements
+            #populating nodes_off with all containers IDs
+            nodes_off = get_all_scope_containers_ids ()
+            print("NODES_OFF: ",nodes_off)
             # Get current timestamp in RFC3339
             timestamp = datetime.datetime.utcnow()
             timestamp = timestamp.isoformat('T') + 'Z'
@@ -92,10 +95,10 @@ def update_loop():
             # Fetch and convert data to scope data model
             new = {}        
             #for container_id, logs in container_logs_lines.items():
-            for entry in containers_ids:
+            for entry in nodes_off :
                 #Controller falco_on is visible
                 dead=True
-                new["%s;<container>" % (entry)] = {
+                new[entry] = {
                         'latestControls': { 
                             "falco_on": {
                                 'timestamp': timestamp,
@@ -115,6 +118,26 @@ def update_loop():
 
         else:
             dead=True
+            for node in nodes_off:
+                short_id=node[0:8]
+                dead=True
+                new[node] = {
+                        'latestControls': { 
+                            "falco_on": {
+                                'timestamp': timestamp,
+                                'value': {
+                                    'dead': not dead,
+                                }
+                            },
+                            "falco_off": {
+                                'timestamp': timestamp,
+                                'value': {
+                                    'dead': dead,
+                                }
+                            }                          
+                        }                       
+                }   
+
             for node in nodes_on:
                 short_id=node[0:8]
                 
@@ -184,13 +207,18 @@ class Handler(BaseHTTPRequestHandler):
             self.end_headers()
 
     def do_control(self):        
-        global nodes_on
+        global nodes_on, nodes_off
         raw = (self.rfile.read(int(self.headers['content-length']))).decode('utf-8')
         raw_dict = json.loads(raw)
         if raw_dict['Control'] == "falco_on":
             print(raw_dict)
             nodes_on.append(raw_dict['NodeID'])
-            self.do_report()        
+            nodes_off.remove(raw_dict['NodeID'])
+        
+        elif raw_dict['Control'] == "falco_off":
+            nodes_on.remove(raw_dict['NodeID'])
+            nodes_off.append(raw_dict['NodeID'])
+        self.do_report()    
 
 
     def do_report(self):
@@ -253,7 +281,7 @@ class Handler(BaseHTTPRequestHandler):
                         # Human-friendly field name
                         'human': "Retrieve falco alerts",
                         # Icon to show.
-                        'icon': "fa-clock-o",
+                        'icon': "fa-gears",
                         # Lower is earlier in the list.
                         'rank': 9
                     },
@@ -263,7 +291,7 @@ class Handler(BaseHTTPRequestHandler):
                         # Human-friendly field name
                         'human': "Retrieve falco alerts",
                         # Icon to show.
-                        'icon': "fa-gears",
+                        'icon': "fa-times-circle",
                         # Lower is earlier in the list.
                         'rank': 9
                     }
@@ -272,10 +300,8 @@ class Handler(BaseHTTPRequestHandler):
         })
 
         # Send the headers
-        #print(nodes)
-        #print(nodes_dump)
-        print (json.dumps(nodes, indent=4))
-        #print(body)
+        #print (json.dumps(nodes, indent=4))
+        
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.send_header('Content-Length', len(body))
