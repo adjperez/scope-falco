@@ -12,6 +12,7 @@ import signal
 import socket
 import threading
 import time
+from collections import ChainMap
 
 import encodings
 import readline
@@ -80,6 +81,10 @@ def update_loop():
     global nodes,nodes_on,nodes_off
     next_call = time.time()  
     #save_containerlogfile()  
+                # Get current timestamp in RFC3339
+    timestamp = datetime.datetime.utcnow()
+    timestamp = timestamp.isoformat('T') + 'Z'
+
     while True:
         #container_logs_lines = read_filelines ()
         #print("NODES_ON: ",nodes_on)
@@ -87,10 +92,8 @@ def update_loop():
             #nodes_on is empty, alerts is off for all elements
             #populating nodes_off with all containers IDs
             nodes_off = get_all_scope_containers_ids ()
-            print("NODES_OFF: ",nodes_off)
-            # Get current timestamp in RFC3339
-            timestamp = datetime.datetime.utcnow()
-            timestamp = timestamp.isoformat('T') + 'Z'
+        
+
 
             # Fetch and convert data to scope data model
             new = {}        
@@ -118,10 +121,10 @@ def update_loop():
 
         else:
             dead=True
-            for node in nodes_off:
-                short_id=node[0:8]
+            for nodeoff in nodes_off:
+                short_id=nodeoff[0:8]
                 dead=True
-                new[node] = {
+                new[nodeoff] = {
                         'latestControls': { 
                             "falco_on": {
                                 'timestamp': timestamp,
@@ -138,45 +141,75 @@ def update_loop():
                         }                       
                 }   
 
-            for node in nodes_on:
-                short_id=node[0:8]
+            for nodeon in nodes_on:
+                short_id=nodeon[0:8]
+                #new [node] = list()
+                print ("NEW NODE_ON....", nodeon)
+                new[nodeon]=dict()
+                new[nodeon]['latest']={}
+                index=1
+                for entry in read_container_falco_logs(short_id):    
+                    
+                    #item= {                        
+                    #            "container-falco-table-Alerts"+("%s" % index)+"___falco-type" : {
+                    #                'timestamp': timestamp,
+                    #                'value': entry["type"]
+                    #            },
+                    #            "container-falco-table-Alerts"+("%s" % index)+"___falco-date" : {
+                    #                'timestamp': timestamp,
+                    #                'value': entry["date"]
+                    #            },
+                    #            "container-falco-table-Alerts"+("%s" % index)+"___falco-description" : {
+                    #                'timestamp': timestamp,
+                    #                'value': entry["description"]
+                    #            }
+                    #}                    
+                    #new[nodeon]['latest']=item
+                    new[nodeon]['latest']["container-falco-table-Alerts"+("%s" % index)+"___falco-type"] = {
+                         'timestamp': timestamp,
+                          'value': entry["type"]
+                    }
+
+                    new[nodeon]['latest']["container-falco-table-Alerts"+("%s" % index)+"___falco-date"] = {
+                         'timestamp': timestamp,
+                          'value': entry["date"]
+                    }
+
+                    new[nodeon]['latest']["container-falco-table-Alerts"+("%s" % index)+"___falco-description"] = {
+                         'timestamp': timestamp,
+                          'value': entry["description"]
+                    }
+
+                    index=index+1
                 
-                for entry in read_container_falco_logs(short_id):                    
-                    new[node] = {
-                        'latest': {
-                            "container-falco-table-Alerts___falco-type" : {
-                                'timestamp': timestamp,
-                                'value': entry["type"]
-                            },
-                            "container-falco-table-Alerts___falco-date" : {
-                                'timestamp': timestamp,
-                                'value': entry["date"]
-                            },
-                            "container-falco-table-Alerts___falco-description" : {
-                                'timestamp': timestamp,
-                                'value': entry["description"]
-                                }
-                        },
-                        'latestControls': { 
-                            "falco_on": {
-                                'timestamp': timestamp,
-                                'value': {
-                                    'dead': dead,
-                                }
-                            },
-                            "falco_off": {
-                                'timestamp': timestamp,
-                                'value': {
-                                    'dead': not dead,
-                                }
-                            }                          
-                        }                                   
-                    }               
-                        
+                
+                
+                final_item = {
+
+                                "falco_on": {
+                                    'timestamp': timestamp,
+                                    'value': {
+                                        'dead': dead,
+                                    }
+                                },
+                                "falco_off": {
+                                    'timestamp': timestamp,
+                                    'value': {
+                                        'dead': not dead,
+                                    }
+                                }                          
+                          
+                }
+                new[nodeon]['latestControls']=final_item
+                
+            #new[nodeon] = ChainMap(new[nodeon][1],new[nodeon][2],new[nodeon][final_item])
+            #print (new[nodeon])
         
         nodes = new
         #print (json.dumps(nodes,indent=4))
+        print (nodes)
         next_call += 5
+        #next_call += 10
         time.sleep(next_call - time.time())
 
 def start_update_loop():
@@ -227,7 +260,7 @@ class Handler(BaseHTTPRequestHandler):
         self.client_address = "-"
         # Generate our json body
         
-        #nodes_dump = json.dumps(nodes,indent = 4).replace("[","{").replace("]","}")
+        #nodes_dump = json.dumps(nodes).replace("[","{").replace("]","}")        
         body = json.dumps({
             'Plugins': [
                 {
@@ -301,6 +334,7 @@ class Handler(BaseHTTPRequestHandler):
 
         # Send the headers
         #print (json.dumps(nodes, indent=4))
+        #print ("REPORT_DELIVERED.....",body)
         
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
