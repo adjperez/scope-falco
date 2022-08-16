@@ -43,19 +43,17 @@ def read_container_falco_logs(id) :
     #c= cli.containers.get("FALCO")
     c=cli.containers.list()
     falco_id=""
-    for c in cli.containers.list():
-        print(c.image)
+    for c in cli.containers.list():        
         if "falcosecurity" in str(c.image):            
-            print("FALCO FOUND!", c.id)
+            #print("FALCO FOUND!", c.id)
             falco_id=c.id
-            break
-    print("FALCO_ID:" ,falco_id)
+            break    
     data=[]
     for line in cli.containers.get(falco_id).logs().decode('utf-8').split("\n"):        
-        try:
-            #print(line)
-            if  (re.search(r'\b(id=%s)\w+' % (id), line)):                                
-                entry = (parse_logs(line))
+        try:            
+            #Adding support for Kubernetes container search
+            if  (re.search(r'\b(id=%s)\w+' % (id), line)) or (re.search(r'\b(container_id=%s)\w+' % (id), line)) :                                                
+                entry = (parse_logs(line))            
                 if entry!=None:
                         data.append(entry)
         except:
@@ -69,7 +67,7 @@ def parse_logs(line):
     structure = {}
     details = line.split(" ",2)        
     cli = docker.from_env()
-    if (len(details)>=2) and (id := re.search(r'\b(id=)\w+', details[2])):
+    if (len(details)>=2) and (id := re.search(r'(id=)\w+', details[2])):
         try:
             c=cli.containers.get(id.group()[3:])        
             details.append(c.id)
@@ -175,8 +173,7 @@ def update_loop():
             new[nodeon]['latestControls']=controls
                 
         
-        nodes = new        
-        #print (nodes)
+        nodes = new                
         next_call += 5
         
         time.sleep(next_call - time.time())
@@ -212,8 +209,7 @@ class Handler(BaseHTTPRequestHandler):
         global nodes_on, nodes_off
         raw = (self.rfile.read(int(self.headers['content-length']))).decode('utf-8')
         raw_dict = json.loads(raw)
-        if raw_dict['Control'] == "falco_on":
-            print(raw_dict)
+        if raw_dict['Control'] == "falco_on":            
             nodes_on.append(raw_dict['NodeID'])
             nodes_off.remove(raw_dict['NodeID'])
         

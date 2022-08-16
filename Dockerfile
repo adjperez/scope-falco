@@ -1,6 +1,6 @@
 # Start from weaveworks/scope, so that we have a docker client built in.
 FROM python:3
-MAINTAINER Weaveworks Inc <help@weave.works>
+MAINTAINER Alfonso Perez <adjperez@gmail.com>
 LABEL works.weave.role=system
 
 #RUN pip install docker-py

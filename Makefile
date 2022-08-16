@@ -3,8 +3,8 @@
 SUDO=$(shell docker info >/dev/null 2>&1 || echo "sudo -E")
 EXE=falco-logs.py
 ORGANIZATION=weaveworksplugins
-IMAGE=$(ORGANIZATION)/scope-falco-logs
-NAME=$(ORGANIZATION)-scope-falco-logs
+IMAGE=$(ORGANIZATION)/scope-falco
+NAME=$(ORGANIZATION)-scope-falco
 UPTODATE=.falco-logs.uptodate
 
 run: $(UPTODATE)

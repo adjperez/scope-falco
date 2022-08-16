@@ -1,0 +1,38 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  labels:
+    app: weavescope
+    weavescope-component: weavescope-falco-plugin
+  name: weavescope-ait-plugin
+spec:
+  selector:
+    matchLabels:
+      name: weavescope-falco-plugin
+  template:
+    metadata:
+      labels:
+        app: weavescope
+        weavescope-component: weavescope-falco-plugin
+        name: weavescope-falco-plugin
+    spec:
+      hostPID: true
+      hostNetwork: true
+      containers:
+        - name: weavescope-falco-plugin
+          image: weaveworksplugins/scope-falco:latest
+          imagePullPolicy: Never
+          securityContext:
+            privileged: true
+          volumeMounts:
+          - name: docker-sock
+            mountPath: /var/run/docker.sock          
+          - name: scope-plugins
+            mountPath: /var/run/scope/plugins
+      volumes:
+      - name: docker-sock
+        hostPath:
+          path: /var/run/docker.sock      
+      - name: scope-plugins
+        hostPath:
+          path: /var/run/scope/plugins
