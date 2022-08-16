@@ -3,12 +3,12 @@ Weaveworks Plugin for Falco Agent
 
 The Scope Falco Agent plugin is a python application that retrieves alerts from a Falco Agent and show them in the corresponding container in the [Weave Scope](https://github.com/weaveworks/scope) UI.
 
-<img src="imgs/iowait.png" width="800" alt="Scope IOWait Plugin screenshot" align="center">
+<img src="imgs/falco-scope.png" width="800" alt="Scope Falco Plugin screenshot" align="center">
 
 ## How to Run Scope Falco Plugin
 
 The Scope Falco plugin can be executed stand alone.
-It will respond to `GET /report` request on the `/var/run/scope/plugins/iowait/iowait.sock` in a JSON format.
+It will respond to `GET /report` request on the `/var/run/scope/plugins/falco-scope/falco-scope.sock` in a JSON format.
 If the running plugin has been registered by Scope, you will see it in the list of `PLUGINS` in the bottom right of the UI (see the red rectangle in the above figure).
 The measured value is shown in the *STATUS* section (see the circle in the above figure).
 
