@@ -21,7 +21,7 @@ To run the Scope Falco plugin you just need to run the following command.
 docker run --rm -ti \
 	--net=host \
 	-v /var/run/scope/plugins:/var/run/scope/plugins \
-	--name weaveworksplugins-scope-iowait weaveworksplugins/scope-iowait:latest
+	--name weaveworksplugins-scope-falco weaveworksplugins/scope-falco:latest
 ```
 
 ### Kubernetes
