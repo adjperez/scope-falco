@@ -70,4 +70,4 @@ If that button is selected, alerts will be visible in the container. Another but
 
 ## Getting Help
 
-
+Please send an email to adjperez@gmail.com
