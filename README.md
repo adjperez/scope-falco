@@ -42,7 +42,7 @@ Once Falco Pod is running,  deploy Scope Falco plugin in an already set up Kuber
 kubectl apply -f https://github.com/adjperez/scope-falco/main/deployments/k8s-falco.yaml
 ```
 
-Make sure that all Pods are in Runnin status:
+Make sure that all Pods are in Running status:
 
 ```
 kubectl get pods -A | grep falco
