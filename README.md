@@ -3,7 +3,7 @@ Weaveworks Plugin for Falco Agent
 
 The Scope Falco Agent plugin is a python application that retrieves alerts from a Falco Agent and show them in the corresponding container in the [Weave Scope](https://github.com/weaveworks/scope) UI.
 
-<img src="[https://github.com/adjperez/scope-falco/tree/main/image](https://github.com/adjperez/scope-falco/blob/main/images/Scope_Falco.png)s" width="800" alt="Scope Falco Plugin screenshot" align="center">
+<img src="blob/main/images/Scope_Falco.png" width="800" alt="Scope Falco Plugin screenshot" align="center">
 
 ## How to Run Scope Falco Plugin
 
