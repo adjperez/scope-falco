@@ -24,12 +24,29 @@ docker run --rm -ti \
 	--name weaveworksplugins-scope-falco weaveworksplugins/scope-falco:latest
 ```
 
-### Kubernetes
+### Kubernetes deployment
 
-If you want to use the Scope IOWait plugin in an already set up Kubernetes cluster with Weave Scope running on it, you just need to run:
+First, you need to run Falco Agent following instructions from www.falco.org:
+```
+helm install falco falcosecurity/falco
+```
+
+You also need to build docker image locally:
+```
+docker build . -t weaveworksplugins/scope-falco
+```
+
+Once Falco Pod is running,  deploy Scope Falco plugin in an already set up Kubernetes cluster with Weave Scope running on it:
 
 ```
 kubectl apply -f https://github.com/adjperez/scope-falco/main/deployments/k8s-falco.yaml
+```
+
+Make sure that all Pods are in Runnin status:
+
+```
+kubectl get pods -A | grep falco
+kubectl get pods -A | grep weave
 ```
 
 ### Recompiling an image
@@ -44,4 +61,5 @@ cd scope-falco; make;
 
 
 ## Getting Help
+
 
