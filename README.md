@@ -59,6 +59,14 @@ cd scope-falco; make;
 
 ## How to use Scope Falco Plugin
 
+Scope Falco adds a new icon (see red square) to enable Falco Alerts in every container:
+
+<img src="images/Scope_Falco.png" width="800" alt="Scope Falco Plugin screenshot" align="center">
+
+If that button is selected, alerts will be visible in the container. Another button (see red square) will also visible to disable these alerts:
+
+<img src="images/Scope_Falco_Alerts.png" width="800" alt="Scope Falco Plugin screenshot" align="center">
+
 
 ## Getting Help
 
